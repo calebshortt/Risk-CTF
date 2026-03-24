@@ -1,0 +1,66 @@
+Metadata-Version: 2.4
+Name: risk-ctf
+Version: 0.1.0
+Summary: Risk-CTF monitor and mothership MVP
+Author: Risk-CTF Team
+Keywords: security,monitoring,agent,ctf,dashboard,hmac,tls,sqlite
+Classifier: Development Status :: 3 - Alpha
+Classifier: Environment :: Console
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Information Technology
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Security
+Classifier: Topic :: System :: Monitoring
+Classifier: Typing :: Typed
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: cryptography>=42.0.0; extra == "dev"
+
+# Risk-CTF
+
+Risk-CTF is a two-part Python project:
+
+- `Monitor`: runs on Linux and Windows hosts, collects security-relevant user activity.
+- `Mothership`: receives monitor activity and renders a game-like dashboard.
+
+## MVP Scope
+
+This repository implements the MVP feature slice:
+
+- Monitor registration with the Mothership.
+- Encrypted/authenticated event transport (TLS + HMAC-authenticated JSON envelopes).
+- Event ingest with replay protection.
+- Minimal dashboard state updates for user-to-country ownership and movement.
+
+## Quick Start
+
+1. Create a virtual environment and install package in editable mode:
+   - `python -m venv .venv`
+   - `.venv\\Scripts\\activate` (Windows)
+   - `pip install -e .`
+2. Start Mothership:
+   - `python -m risk_ctf.mothership --host 127.0.0.1 --port 8443 --db-path ./mothership.db --tls-cert ./cert.pem --tls-key ./key.pem`
+   - By default the **dashboard** is also served over plain HTTP on port **8080** (open `http://127.0.0.1:8080/dashboard`). Monitor registration and event ingest remain **HTTPS-only** on `--port`. Use `--http-dashboard-port 0` to disable the HTTP listener.
+3. Start Monitor:
+   - `python -m risk_ctf.monitor --mothership-base-url https://127.0.0.1:8443 --state-file ./monitor_state.json --insecure-dev-tls`
+
+## Windows Compatibility Notes
+
+- Monitor defaults are platform-aware:
+  - Linux defaults use `/var/log/auth.log`, `/var/log/secure`, and shell history files.
+  - Windows defaults use `C:\ProgramData\RiskCTF\security.log`, `C:\ProgramData\ssh\logs\sshd.log`, and PowerShell history paths.
+- On Windows, you can use helper scripts:
+  - `deploy/start_mothership.ps1`
+  - `deploy/start_monitor.ps1`
+- If your logs are located elsewhere, pass explicit `--auth-log-path`, `--secure-log-path`, and `--shell-history-path` arguments.
+
+## Tests
+
+Run:
+
+- `python -m unittest discover -s tests -p "test_*.py"`

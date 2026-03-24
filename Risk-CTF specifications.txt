@@ -1,0 +1,61 @@
+
+
+Project Description:
+"Risk-CTF" is a 2-part project, writen in python. Part 1 is a "Monitor" and Part 2 a "Mothership".
+
+The Monitor resides on the target host (a linux based system). Its purpose is to track the activity os all users on the host -- this includes logon activity, all commands executed, any time they use sudo, and any time the remotely log into another host from this host. All activity is collected, structured in JSON format, and sent encrypted to the Mothership. The Monitor operates in an environment where hackers may have access to user-level commands. Because of this, the monitor must be written in a secure manner, and must try to achieve its goals with minimal footprint and permissions. What permissions the monitor has must be limited and the commands written in such a way that they can not be abused by malicious actors.
+
+The Mothership
+The motherhship acts like a secure server. It takes the JSON formatted activity from numerous Monitors and parses the information. The Mothership maintains a website dashboard that looks like a world map. Each monitor represents a country on the world map. When a user logs in from one country to another country, the mothership draws a user-specific coloured line from the origin country to the destination country. The countries that are under a specific user's control will be highlighted with that user's colour. If there are multiple users on a single country, the country will be highlighted with all colours of the users currently acting on the monitor's host. When a user logs on to a country for the first time a pop-up will appear for 3 seconds that announces that the user has taken a new country.
+
+High-Level Project Goals:
+1. Create a python project that has the following requirements in the requirements section.
+2. Iterate through the requirements and ensure that each requirement solution does not contradict other requirements.
+3. Use the python programming language.
+4. Project folder structure must follow best practices for stand-alone python projects.
+5. If at all possible, avoid including third part libraries.
+6. The target architecture is linux: This project must support Fedora and Debian based linux distributions.
+
+Monitor Requirements:
+1. Must be written in python
+2. Must adhere to the principle of least privilege
+3. Must support Fedora and Debian based operating systems
+4. Must assume that malicious users are on the same host as it operates -- and must be written in a way to not be taken advantage by them -- write this application defensively.
+5. Must use python best practices when developing the Monitor
+6. Must track the logs of the host and perform the following actions:
+6.a. Update the Mothership when a new user logs onto the host
+6.b. Update the Mothership when a user elevates their privileges on the host
+6.c. Update the Mothership when a user executes a command on the host
+6.d. Update the mothership when a user logs into another host from this host -- and give it source and destination information
+6.e. Update the mothership if a user attempts to modify the Monitor application
+6.f. Update the mothership if a user attempts to boot another user off of the host
+6.g. Update the mothership if a user downloads a tool or file from the internet
+6.h. Update the mothership if a user reboots the host
+7. Must send all updates to the Mothership in a standard JSON format
+8. All communications with the Mothership must be encrypted
+9. The Monitor must "register" with the Mothership on startup to ensure that it is not a malicious actors
+10. The monitor must have a small footprint
+11. The monitor must be defensively written -- it must be tamper proof.
+
+Mothership Requirements:
+1. Must host a website game map dashboard that is openly visible
+1.a. The dashboard is a representation of a world map
+1.b. Each nation in the world map is a host with a Monitor application installed on it
+1.c. There can not be more nations than there are hosts with Monitors installed on them
+1.d. The dashboard includes a key where it shows each player and an associated colour for the map
+1.e. Each time a user gains access host (determined by if they log into a host): the game map is updated and the host's associated nation on the map is highlighted with that user's colour, and a popup shows for 2 seconds announcing that the user has gained access to that nation.
+1.f. Each nation on the map is named and has connections to each other nation close to it -- over land or by sea.
+2.Must host an API that:
+2.a. Accepts a registration request from a Monitor and registers it with the master ledger. Once a Monitor is registered, it is assigned a nation on the board. Each Monitor is given a unique authentication code to continue to communicate with the Mothership.
+2.b. Accepts the encrypted JSON data from the Monitors and updates the game map based on it. The unique authentication code given to the Monitor in the registration step is required for this communication to be accepted.
+2.c. Is authenticated and will not allow unauthorized requests.
+2.d. Must enforce encrypted traffic.
+3. Must be written in python
+4. Must use python best practices for hosting APIs and servers.
+5. Must assume that malicious actors will attempt to gain access to the server dashboard and API, and thus it must be properly secured using best practices.
+6. Must be easily bootable.
+
+
+
+
+

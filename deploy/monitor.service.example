@@ -1,0 +1,20 @@
+[Unit]
+Description=Risk-CTF Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=riskmonitor
+Group=riskmonitor
+ExecStart=/usr/bin/python3 -m risk_ctf.monitor --mothership-base-url https://mothership.local:8443 --state-file /var/lib/risk-ctf/monitor_state.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/risk-ctf
+
+[Install]
+WantedBy=multi-user.target

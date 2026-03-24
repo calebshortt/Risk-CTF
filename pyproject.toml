@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risk-ctf"
+version = "0.1.0"
+description = "Risk-CTF monitor and mothership MVP"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Risk-CTF Team" }]
+keywords = [
+    "security",
+    "monitoring",
+    "agent",
+    "ctf",
+    "dashboard",
+    "hmac",
+    "tls",
+    "sqlite",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
+]
+# Runtime: Python standard library only (http.server, ssl, sqlite3, urllib, etc.).
+dependencies = []
+
+[project.optional-dependencies]
+# Optional tooling not imported by `risk_ctf` at runtime. Used for local dev TLS
+# certificate generation when OpenSSL is unavailable (see project README).
+dev = ["cryptography>=42.0.0"]
+
+[project.scripts]
+risk-ctf-monitor = "risk_ctf.monitor.__main__:main"
+risk-ctf-mothership = "risk_ctf.mothership.__main__:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]

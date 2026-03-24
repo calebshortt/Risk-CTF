@@ -1,0 +1,3 @@
+[console_scripts]
+risk-ctf-monitor = risk_ctf.monitor.__main__:main
+risk-ctf-mothership = risk_ctf.mothership.__main__:main

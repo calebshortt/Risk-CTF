@@ -1,0 +1,20 @@
+[Unit]
+Description=Risk-CTF Mothership
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=riskmship
+Group=riskmship
+ExecStart=/usr/bin/python3 -m risk_ctf.mothership --host 0.0.0.0 --port 8443 --http-dashboard-port 8080 --db-path /var/lib/risk-ctf/mothership.db --tls-cert /etc/risk-ctf/cert.pem --tls-key /etc/risk-ctf/key.pem
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/risk-ctf
+
+[Install]
+WantedBy=multi-user.target
