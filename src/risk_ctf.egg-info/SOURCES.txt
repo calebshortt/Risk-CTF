@@ -22,6 +22,7 @@ src/risk_ctf/mothership/ledger.py
 src/risk_ctf/mothership/server.py
 src/risk_ctf/mothership/world_map.py
 tests/test_auth.py
+tests/test_collector.py
 tests/test_flow.py
 tests/test_ledger.py
 tests/test_schema.py

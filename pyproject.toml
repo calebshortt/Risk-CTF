@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "risk-ctf"
-version = "0.1.0"
-description = "Risk-CTF monitor and mothership MVP"
+version = "0.2.1"
+description = "Risk-CTF: Monitor agent and Mothership server (TLS/HMAC API, world-map dashboard, Phase 2 events). Includes deploy setup scripts and tools/gen_dev_certs.py for dev TLS."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Risk-CTF Team" }]
@@ -18,6 +18,11 @@ keywords = [
     "hmac",
     "tls",
     "sqlite",
+    "event-ingest",
+    "integrity",
+    "threat-hunting",
+    "dev-environment",
+    "setup-script",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -34,11 +39,14 @@ classifiers = [
     "Typing :: Typed",
 ]
 # Runtime: Python standard library only (http.server, ssl, sqlite3, urllib, etc.).
+# Phase 2 adds more event types and dashboard features without new runtime deps.
+# Optional [project.optional-dependencies] dev: cryptography for tools/gen_dev_certs.py
+# and automated setup scripts (deploy/setup_*.ps1, deploy/setup_*.sh).
 dependencies = []
 
 [project.optional-dependencies]
-# Optional tooling not imported by `risk_ctf` at runtime. Used for local dev TLS
-# certificate generation when OpenSSL is unavailable (see project README).
+# Not imported by `risk_ctf` at runtime. Used by tools/gen_dev_certs.py and the
+# deploy/setup_* scripts when OpenSSL is unavailable (see README).
 dev = ["cryptography>=42.0.0"]
 
 [project.scripts]

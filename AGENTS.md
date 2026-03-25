@@ -4,79 +4,92 @@
 
 Risk-CTF has two Python components:
 
-- `Monitor`: runs on endpoint hosts, collects security-relevant activity, and sends signed/encrypted events.
-- `Mothership`: receives monitor events, validates/authenticates them, stores ledger state, and serves the dashboard/API.
+- **Monitor**: runs on endpoint hosts, collects security-relevant activity (logs, shell history, optional integrity baselines), and sends **HMAC-signed** events to the Mothership over **HTTPS**.
+- **Mothership**: validates and stores events in **SQLite**, serves the **TLS** Monitor API, and serves the **dashboard** (fictional world map, activity feed, multi-user highlights).
 
-Current codebase is an MVP with stdlib-first design: **no required runtime third-party packages** (see `pyproject.toml` `dependencies`).
+**Version:** see `version` in [`pyproject.toml`](pyproject.toml) (currently **0.2.1**).
+
+**Runtime dependencies:** none beyond the Python standard library (`pyproject.toml` `[project] dependencies = []`). Optional **`[project.optional-dependencies] dev`** installs **`cryptography`** for [`tools/gen_dev_certs.py`](tools/gen_dev_certs.py) and the **`deploy/setup_*`** scripts. **Not** imported by `risk_ctf` at runtime.
 
 ## Primary Requirements
 
-- Keep **monitor API** transport encrypted (TLS): registration and event ingest must use HTTPS.
-- The **dashboard** may optionally be exposed on plain HTTP on a **separate port** (read-only UI and `GET /api/v1/dashboard/state`). **Do not** add authenticated API routes on that listener (`POST` there returns 403).
-- Keep API requests authenticated (HMAC signatures).
-- Enforce anti-replay protection (timestamp window + nonce tracking).
-- Validate event schemas strictly and fail closed on bad input.
-- Prefer least-privilege operation and avoid introducing command-injection risk.
+- Keep **Monitor API** traffic on **TLS** (`register` + `events` on the main HTTPS port).
+- The **dashboard** may use a **separate plain-HTTP port** (read-only: `GET /dashboard`, `GET /api/v1/dashboard/state`, `GET /healthz`, `GET /` redirect). **Never** expose authenticated `POST` API routes there (handlers return **403**).
+- Authenticate API requests (**HMAC**); use **constant-time** signature compare.
+- Enforce **anti-replay** (timestamp skew window + per-monitor nonce tracking).
+- Validate **all** event envelopes with [`risk_ctf.common.schema`](src/risk_ctf/common/schema.py); **fail closed** on bad input.
+- **Least privilege** for the Monitor; avoid shell injection (no `shell=True`; defensive parsing only).
 
-## Packaging and Dependencies
+## Packaging and install
 
-- Install: `pip install -e .` from the repo root (uses `src/` layout per `pyproject.toml`).
-- Optional dev extra for local TLS **certificate generation** when OpenSSL is missing: `pip install -e ".[dev]"` (pulls `cryptography`; **not** imported by `risk_ctf` at runtime).
-- Console entry points after install: `risk-ctf-monitor`, `risk-ctf-mothership` (same CLIs as `python -m risk_ctf.monitor` / `python -m risk_ctf.mothership`).
+- Editable install: `pip install -e .` (package root: `src/` per `[tool.setuptools]`).
+- Development stack: `pip install -e ".[dev]"` (pulls `cryptography` for local TLS cert generation only).
+- **Automated setup** (repo root): create `.venv`, install dependencies, and in dev (unless skipped) run **`tools/gen_dev_certs.py`** when `cert.pem` / `key.pem` are missing:
+  - `deploy/setup_mothership.ps1` or `deploy/setup_mothership.sh`
+  - `deploy/setup_monitor.ps1` or `deploy/setup_monitor.sh`
+  - Flags: **Production** / `--production` / `RISK_CTF_PRODUCTION=1` → runtime-only install, no certs; **SkipCert** / `--skip-cert`; **NoVenv** / `--no-venv`.
+- Entry points: **`risk-ctf-monitor`**, **`risk-ctf-mothership`** (wrappers for `python -m risk_ctf.monitor` / `risk_ctf.mothership`).
 
-## Repo Structure
+## Repo structure
 
-- `src/risk_ctf/common`: shared contracts, schema validation, crypto/auth helpers
-- `src/risk_ctf/monitor`: monitor agent, collectors, mothership client
-- `src/risk_ctf/mothership`: HTTPS API server, ledger persistence, dashboard HTML, fictional map metadata
-- `src/risk_ctf/mothership/world_map.py`: fictional world map payload for the dashboard (10 host-nations aligned with ledger `COUNTRIES`, adjacency for drawing, two starter players for UI positioning)
-- `tests`: unit/integration/security tests (`PYTHONPATH=src` or editable install)
-- `deploy`: Linux `systemd` examples and Windows PowerShell startup scripts
+| Path | Role |
+|------|------|
+| `src/risk_ctf/common` | Contracts, schema (`ALLOWED_EVENT_TYPES`), HMAC helpers |
+| `src/risk_ctf/monitor` | Agent, collector (Phase 2 heuristics), Mothership client |
+| `src/risk_ctf/mothership` | Threaded HTTPS/HTTP servers, ledger, dashboard HTML |
+| `src/risk_ctf/mothership/world_map.py` | Fictional map JSON (`world`); 10 nations = ledger `COUNTRIES`; adjacency; starter UI players |
+| `tools/gen_dev_certs.py` | Dev-only TLS keypair (`cert.pem`, `key.pem`); requires `cryptography` from **`[dev]`** |
+| `tests` | `unittest` suite; run with `PYTHONPATH=src` or after `pip install -e .` |
+| `deploy` | **Setup:** `setup_mothership.ps1` / `.sh`, `setup_monitor.ps1` / `.sh`, **run:** `start_*.ps1`, `*.service.example` (Linux) |
 
-## Mothership Runtime Behavior
+## Mothership runtime
 
-- **HTTPS** (main `--port`, default 8443): `POST /api/v1/monitors/register`, `POST /api/v1/events`, `GET /dashboard`, `GET /api/v1/dashboard/state`, `GET /healthz`.
-- **HTTP** (optional `--http-dashboard-port`, default **8080**; use **0** to disable): only `GET /`, `GET /dashboard`, `GET /api/v1/dashboard/state`, `GET /healthz`; **no** API registration or ingest.
-- **Ledger / SQLite**: a single shared connection is used from `ThreadingHTTPServer` worker threads. The implementation uses `check_same_thread=False` and a `threading.Lock` around DB access. If you change storage, preserve thread safety or switch to per-thread connections.
+- **HTTPS** (`--port`, default `8443`): `POST /api/v1/monitors/register`, `POST /api/v1/events`, `GET /dashboard`, `GET /api/v1/dashboard/state`, `GET /healthz`.
+- **HTTP** (`--http-dashboard-port`, default `8080`; **`0` = off**): dashboard-only GET routes; no API writes.
+- **SQLite + threads:** one connection, `check_same_thread=False`, all DB access under a **`threading.Lock`**. Preserve this invariant if you change persistence.
 
-## Dashboard
+## Dashboard data model
 
-- Ingested activity still drives `dashboard_state()` (users, moves). `enrich_dashboard_state()` merges a static **fictional** map layer (`world` in JSON) for visualization; ledger keys remain the `COUNTRIES` list (ten slots = ten Monitors).
+- `ledger.dashboard_state()` supplies **`user_colors`**, **`countries`**, **`moves`**, **`players_legend`**, **`activity_feed`** (Phase 2).
+- `enrich_dashboard_state(state)` adds **`world`** (map geometry, fictional labels, static starter players).
+- Map **multi-color** nations when multiple users appear on the same ledger nation; **popups** ~**3s** for first-seen user/nation in the client script.
 
-## Coding Standards
+## Monitor event types (ingest)
 
-- Language: Python 3.11+.
-- Prefer Python standard library unless a dependency is clearly justified.
-- Keep modules focused and explicit; avoid hidden side effects.
-- Use ASCII by default in files and outputs.
-- Maintain cross-platform behavior (Linux + Windows) unless change is explicitly platform-specific.
-- Preserve backward compatibility for existing API routes and header contracts.
+Authoritative set: **`risk_ctf.common.schema.ALLOWED_EVENT_TYPES`**
 
-## Security Guardrails
+- `user_login`, `sudo_elevation`, `remote_login`
+- **Phase 2:** `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`
 
-- Never log secrets, HMAC keys, or full auth headers.
-- Use constant-time comparison for signatures.
-- Reject requests with missing/invalid auth metadata.
-- Keep parser logic defensive and explicit for all event fields.
-- Any new endpoint must include auth checks unless intentionally public.
+**Integrity / tamper:** default baseline = `*.py` under the Monitor package (`default_integrity_paths()`). CLI: **`--no-integrity-check`**, **`--integrity-path`** (repeatable). Heuristic only—not EDR-grade.
 
-## Testing Expectations
+## Coding standards
 
-- Add or update tests for every substantive behavior change.
-- At minimum run:
-  - `python -m unittest discover -s tests -p "test_*.py"`
-- Include adversarial test coverage for auth/schema/replay-sensitive code paths when applicable.
+- Python **3.11+**; ASCII-by-default in code and typical outputs unless a format requires otherwise.
+- Prefer **stdlib**; new third-party deps need strong justification and `pyproject.toml` updates.
+- Cross-platform (**Linux + Windows**) unless a change is explicitly OS-specific.
+- Preserve **backward compatibility** for existing **routes** and **auth header** contracts when possible.
 
-## Operational Notes
+## Security guardrails
 
-- Mothership: `python -m risk_ctf.mothership ...` or `risk-ctf-mothership ...` (TLS cert/key required; see README for flags).
-- Monitor: `python -m risk_ctf.monitor ...` or `risk-ctf-monitor ...`
-- Windows helpers:
-  - `deploy/start_mothership.ps1`
-  - `deploy/start_monitor.ps1`
+- Never log **secrets**, HMAC keys, or raw auth headers.
+- Any new **HTTPS** route that mutates state must require **valid Monitor auth** unless deliberately public (none today).
+- Parsers must stay **defensive** (length limits, strict types in schema).
 
-## Change Management
+## Testing
 
-- Do not edit plan artifacts in `.cursor/plans` unless explicitly requested.
-- Keep edits minimal, targeted, and aligned with the existing MVP architecture.
-- Prefer extending existing contracts over introducing parallel/incompatible ones.
+- Add or update tests for behavioral changes.
+- Minimum: `python -m unittest discover -s tests -p "test_*.py"`.
+- Favor adversarial cases for **auth**, **schema**, and **replay** paths.
+
+## Operational commands
+
+- **Setup:** `deploy/setup_mothership.ps1` / `deploy/setup_mothership.sh` and `deploy/setup_monitor.ps1` / `deploy/setup_monitor.sh` (see **Packaging and install** above).
+- **Run:** `deploy/start_mothership.ps1`, `deploy/start_monitor.ps1`, or `python -m risk_ctf.mothership` / `python -m risk_ctf.monitor`.
+- Mothership requires `--db-path`, `--tls-cert`, `--tls-key`.
+- Monitor requires `--mothership-base-url`, `--state-file`; use `--insecure-dev-tls` only for dev self-signed CAs.
+
+## Change management
+
+- Do not edit `.cursor/plans` unless the user asks.
+- Keep diffs **focused**; extend existing contracts instead of parallel incompatible ones.

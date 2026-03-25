@@ -283,6 +283,10 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
       z-index: 20;
     }}
     h3.section {{ font-size: 1rem; margin: 1.25rem 0 0.5rem; }}
+    .feed-wrap {{ max-width: 1000px; overflow-x: auto; background: var(--panel); border: 1px solid #415a77; border-radius: 10px; }}
+    table.feed {{ width: 100%; border-collapse: collapse; font-size: 0.8rem; }}
+    table.feed th, table.feed td {{ padding: 6px 10px; text-align: left; border-bottom: 1px solid #415a77; }}
+    table.feed th {{ color: var(--muted); font-weight: 600; }}
   </style>
 </head>
 <body>
@@ -303,6 +307,14 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     <div id="countries" class="grid"></div>
     <h3 class="section">Movements</h3>
     <ul id="moves"></ul>
+    <h3 class="section">Recent activity</h3>
+    <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">Latest ingested events (all types).</p>
+    <div class="feed-wrap">
+      <table class="feed" aria-label="Recent activity">
+        <thead><tr><th>Time</th><th>Type</th><th>Actor</th><th>Nation</th><th>Summary</th></tr></thead>
+        <tbody id="activity-feed"></tbody>
+      </table>
+    </div>
   </main>
   <script>
     const state = {state_json};
@@ -359,14 +371,37 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
       const g = document.createElementNS(ns, "g");
       g.setAttribute("transform", `translate(${{n.x}}, ${{n.y}})`);
 
+      const cols = activity[n.key] || [];
       const r = 26;
-      const circle = document.createElementNS(ns, "circle");
-      circle.setAttribute("r", r);
-      circle.setAttribute("fill", activity[n.key] && activity[n.key].length ? activity[n.key][0] : "#2b3e5a");
-      circle.setAttribute("stroke", "#e0e1dd");
-      circle.setAttribute("stroke-width", "2");
-      circle.setAttribute("opacity", activity[n.key] && activity[n.key].length ? "0.95" : "0.55");
-      g.appendChild(circle);
+      const base = document.createElementNS(ns, "circle");
+      base.setAttribute("r", r);
+      base.setAttribute("stroke", "#e0e1dd");
+      base.setAttribute("stroke-width", "2");
+      if (cols.length === 0) {{
+        base.setAttribute("fill", "#2b3e5a");
+        base.setAttribute("opacity", "0.55");
+      }} else if (cols.length === 1) {{
+        base.setAttribute("fill", cols[0]);
+        base.setAttribute("opacity", "0.95");
+      }} else {{
+        base.setAttribute("fill", "#1a2332");
+        base.setAttribute("opacity", "0.92");
+      }}
+      g.appendChild(base);
+      if (cols.length > 1) {{
+        const rim = r + 7;
+        cols.forEach((col, i) => {{
+          const angle = (2 * Math.PI * i) / cols.length - Math.PI / 2;
+          const dot = document.createElementNS(ns, "circle");
+          dot.setAttribute("cx", (Math.cos(angle) * rim).toFixed(2));
+          dot.setAttribute("cy", (Math.sin(angle) * rim).toFixed(2));
+          dot.setAttribute("r", "7");
+          dot.setAttribute("fill", col);
+          dot.setAttribute("stroke", "#fff");
+          dot.setAttribute("stroke-width", "1.5");
+          g.appendChild(dot);
+        }});
+      }}
 
       const t = document.createElementNS(ns, "text");
       t.setAttribute("y", r + 18);
@@ -423,6 +458,20 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
       div.innerHTML = `<span class="legend-swatch" style="background:${{p.color}}"></span><span><strong>${{p.label}}</strong> — start: <em>${{byKey[p.nation_key].label}}</em> (${{byKey[p.nation_key].side}} shore)</span>`;
       leg.appendChild(div);
     }});
+    (state.players_legend || []).forEach((pl) => {{
+      const div = document.createElement("div");
+      div.className = "legend-item";
+      div.innerHTML = `<span class="legend-swatch" style="background:${{pl.color}}"></span><span><strong>${{pl.label}}</strong> — detected from events</span>`;
+      leg.appendChild(div);
+    }});
+
+    const feedBody = document.getElementById("activity-feed");
+    (state.activity_feed || []).forEach((row) => {{
+      const tr = document.createElement("tr");
+      const tds = [row.ts || "", row.event_type || "", row.actor_user || "", row.source_country || "", row.summary || ""];
+      tr.innerHTML = "<td>" + tds.map((c) => String(c).replace(/&/g,"&amp;").replace(/</g,"&lt;")).join("</td><td>") + "</td>";
+      feedBody.appendChild(tr);
+    }});
 
     const countriesEl = document.getElementById("countries");
     const movesEl = document.getElementById("moves");
@@ -442,7 +491,7 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
           seen.add(key);
           popup.textContent = `${{user}} captured ${{country.country}}`;
           popup.style.display = "block";
-          setTimeout(() => {{ popup.style.display = "none"; }}, 2500);
+          setTimeout(() => {{ popup.style.display = "none"; }}, 3000);
         }}
       }});
     }});

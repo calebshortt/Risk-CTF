@@ -38,6 +38,48 @@ class SchemaTests(unittest.TestCase):
         with self.assertRaises(SchemaError):
             EventEnvelope.validate(envelope)
 
+    def test_command_executed_envelope(self) -> None:
+        envelope = {
+            "event_type": "command_executed",
+            "event_id": "evt_c",
+            "ts": "2026-03-23T20:00:00Z",
+            "monitor_id": "mon_1",
+            "actor_user": "bob",
+            "source_host": "host1",
+            "source_country": "Canada",
+            "payload": {"command_line": "ls -la"},
+        }
+        self.assertEqual(EventEnvelope.validate(envelope).event_type, "command_executed")
+
+    def test_tool_download_envelope(self) -> None:
+        envelope = {
+            "event_type": "tool_download",
+            "event_id": "evt_d",
+            "ts": "2026-03-23T20:00:00Z",
+            "monitor_id": "mon_1",
+            "actor_user": "bob",
+            "source_host": "host1",
+            "source_country": "Canada",
+            "payload": {"channel": "curl", "target": "https://example.com/a.zip"},
+        }
+        self.assertEqual(EventEnvelope.validate(envelope).event_type, "tool_download")
+
+    def test_tamper_attempt_envelope(self) -> None:
+        envelope = {
+            "event_type": "tamper_attempt",
+            "event_id": "evt_t",
+            "ts": "2026-03-23T20:00:00Z",
+            "monitor_id": "mon_1",
+            "actor_user": "unknown",
+            "source_host": "host1",
+            "source_country": "Canada",
+            "payload": {
+                "path": "/opt/risk_ctf/monitor/agent.py",
+                "observation": "mtime_or_size_changed",
+            },
+        }
+        self.assertEqual(EventEnvelope.validate(envelope).event_type, "tamper_attempt")
+
 
 if __name__ == "__main__":
     unittest.main()

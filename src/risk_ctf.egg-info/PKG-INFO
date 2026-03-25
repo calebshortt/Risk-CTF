@@ -1,9 +1,9 @@
 Metadata-Version: 2.4
 Name: risk-ctf
-Version: 0.1.0
-Summary: Risk-CTF monitor and mothership MVP
+Version: 0.2.0
+Summary: Risk-CTF: cross-platform Monitor agent and Mothership server (TLS/HMAC API, fictional world-map dashboard, Phase 2 event coverage)
 Author: Risk-CTF Team
-Keywords: security,monitoring,agent,ctf,dashboard,hmac,tls,sqlite
+Keywords: security,monitoring,agent,ctf,dashboard,hmac,tls,sqlite,event-ingest,integrity,threat-hunting
 Classifier: Development Status :: 3 - Alpha
 Classifier: Environment :: Console
 Classifier: Intended Audience :: Developers
@@ -25,42 +25,88 @@ Requires-Dist: cryptography>=42.0.0; extra == "dev"
 
 Risk-CTF is a two-part Python project:
 
-- `Monitor`: runs on Linux and Windows hosts, collects security-relevant user activity.
-- `Mothership`: receives monitor activity and renders a game-like dashboard.
+- **Monitor**: runs on Linux and Windows hosts, collects security-relevant activity from logs and shell history, and sends signed events to the Mothership over **HTTPS**.
+- **Mothership**: validates and stores events, exposes a **TLS** API for Monitors, and serves an optional **HTTP** dashboard with a fictional world map.
 
-## MVP Scope
+**Packaging:** stdlib-only at runtime (`dependencies` in `pyproject.toml` is empty). Optional **`dev`** extra installs `cryptography` for generating local TLS certs when OpenSSL is not available (`pip install -e ".[dev]"`).
 
-This repository implements the MVP feature slice:
+## Automated setup (recommended)
 
-- Monitor registration with the Mothership.
-- Encrypted/authenticated event transport (TLS + HMAC-authenticated JSON envelopes).
-- Event ingest with replay protection.
-- Minimal dashboard state updates for user-to-country ownership and movement.
+From the **repository root**, use the scripts that create a `.venv`, install dependencies, and (in **development** mode) generate `cert.pem` / `key.pem` via [`tools/gen_dev_certs.py`](tools/gen_dev_certs.py) when missing.
+
+| Role | Windows (PowerShell) | Linux / macOS (bash) |
+|------|----------------------|----------------------|
+| **Mothership** | `.\deploy\setup_mothership.ps1` | `./deploy/setup_mothership.sh` |
+| **Monitor** | `.\deploy\setup_monitor.ps1` | `./deploy/setup_monitor.sh` |
+
+- **Development (default):** installs `pip install -e ".[dev]"` and creates dev TLS material if `cert.pem` / `key.pem` are absent.
+- **Production-style:** `.\deploy\setup_mothership.ps1 -Production` or `./deploy/setup_mothership.sh --production` — runtime-only install (`pip install -e .`), no cert generation.
+- **Skip cert generation:** `-SkipCert` (PowerShell) or `--skip-cert` (bash).
+- **Skip venv creation:** use `-NoVenv` / `--no-venv` if you manage your own environment.
+- **`RISK_CTF_PRODUCTION=1`** in the environment also selects production mode.
+
+## Feature summary
+
+| Area | What is included |
+|------|------------------|
+| **Transport / API** | TLS for Monitor traffic; HMAC request signing; timestamp + nonce anti-replay; strict JSON schemas. |
+| **Mothership** | SQLite ledger; HTTPS listener for register + ingest; optional second listener for dashboard-only HTTP (`--http-dashboard-port`, default `8080`, use `0` to disable). |
+| **Dashboard** | Fictional map (10 host-nations), scenario starter players, multi-user color highlights, movement edges, recent **activity feed**, ~3s capture popups. |
+| **Monitor (Phase 2)** | Event types: `user_login`, `sudo_elevation`, `remote_login`, `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`. Optional **integrity** baseline on Monitor `*.py` files (tamper hints). |
 
 ## Quick Start
 
-1. Create a virtual environment and install package in editable mode:
+1. Create a virtual environment and install in editable mode:
+
    - `python -m venv .venv`
-   - `.venv\\Scripts\\activate` (Windows)
+   - `.venv\Scripts\activate` (Windows) or `source .venv/bin/activate` (Linux)
    - `pip install -e .`
-2. Start Mothership:
-   - `python -m risk_ctf.mothership --host 127.0.0.1 --port 8443 --db-path ./mothership.db --tls-cert ./cert.pem --tls-key ./key.pem`
-   - By default the **dashboard** is also served over plain HTTP on port **8080** (open `http://127.0.0.1:8080/dashboard`). Monitor registration and event ingest remain **HTTPS-only** on `--port`. Use `--http-dashboard-port 0` to disable the HTTP listener.
-3. Start Monitor:
-   - `python -m risk_ctf.monitor --mothership-base-url https://127.0.0.1:8443 --state-file ./monitor_state.json --insecure-dev-tls`
 
-## Windows Compatibility Notes
+2. **TLS material:** use your own `cert.pem` / `key.pem`, or install `pip install -e ".[dev]"` and generate certs (e.g. with a short `cryptography` script) if `openssl` is not on your PATH.
 
-- Monitor defaults are platform-aware:
-  - Linux defaults use `/var/log/auth.log`, `/var/log/secure`, and shell history files.
-  - Windows defaults use `C:\ProgramData\RiskCTF\security.log`, `C:\ProgramData\ssh\logs\sshd.log`, and PowerShell history paths.
-- On Windows, you can use helper scripts:
-  - `deploy/start_mothership.ps1`
-  - `deploy/start_monitor.ps1`
-- If your logs are located elsewhere, pass explicit `--auth-log-path`, `--secure-log-path`, and `--shell-history-path` arguments.
+3. Start **Mothership**:
+
+   ```text
+   python -m risk_ctf.mothership --host 127.0.0.1 --port 8443 --http-dashboard-port 8080 --db-path ./mothership.db --tls-cert ./cert.pem --tls-key ./key.pem
+   ```
+
+   - **API (HTTPS):** `https://127.0.0.1:8443`
+   - **Dashboard (HTTP):** `http://127.0.0.1:8080/dashboard` (browser may warn on self-signed certs for HTTPS only)
+
+   After `pip install -e .`, you can use **`risk-ctf-mothership`** with the same arguments.
+
+4. Start **Monitor**:
+
+   ```text
+   python -m risk_ctf.monitor --mothership-base-url https://127.0.0.1:8443 --state-file ./monitor_state.json --insecure-dev-tls
+   ```
+
+   Useful flags:
+
+   - `--no-integrity-check` — disable baseline tamper checks on Monitor package sources.
+   - `--integrity-path PATH` — add extra files to the integrity baseline (repeatable).
+   - `--auth-log-path`, `--secure-log-path`, `--shell-history-path` — override log/history locations.
+
+   Console alias: **`risk-ctf-monitor`**.
+
+## Windows vs Linux
+
+- **Monitor** defaults are platform-aware (see `risk_ctf.monitor.collector.default_collector_paths()`).
+- **Windows** helpers: `deploy/setup_mothership.ps1`, `deploy/setup_monitor.ps1`, `deploy/start_mothership.ps1`, `deploy/start_monitor.ps1`.
+- **Unix** helpers: `deploy/setup_mothership.sh`, `deploy/setup_monitor.sh` (run `chmod +x` once if needed).
+- **Linux** examples: `deploy/monitor.service.example`, `deploy/mothership.service.example`.
 
 ## Tests
 
-Run:
+From the repo root (with the package on `PYTHONPATH`):
 
-- `python -m unittest discover -s tests -p "test_*.py"`
+```text
+set PYTHONPATH=src
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+If you used `pip install -e .`, you can run the same command without setting `PYTHONPATH`.
+
+## Further reading
+
+- **[AGENTS.md](AGENTS.md)** — conventions, security guardrails, and architecture notes for contributors and coding agents.

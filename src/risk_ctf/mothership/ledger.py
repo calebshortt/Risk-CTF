@@ -9,6 +9,27 @@ import threading
 from pathlib import Path
 from typing import Any
 
+
+def _activity_feed_summary(event_type: str, payload: dict[str, Any]) -> str:
+    if event_type == "command_executed":
+        return str(payload.get("command_line", ""))[:120]
+    if event_type == "tool_download":
+        return f"{payload.get('channel', '?')}: {str(payload.get('target', ''))[:100]}"
+    if event_type == "host_reboot":
+        return str(payload.get("detail", ""))[:120]
+    if event_type == "tamper_attempt":
+        return f"{payload.get('path', '')}: {payload.get('observation', '')}"
+    if event_type == "session_terminate":
+        return f"target={payload.get('target_user')} via {payload.get('method', '')}"
+    if event_type == "remote_login":
+        return f"->{payload.get('destination_country')} ({payload.get('protocol')})"
+    if event_type == "user_login":
+        return f"login ip={payload.get('source_ip', '')}"
+    if event_type == "sudo_elevation":
+        return str(payload.get("method", ""))
+    return event_type
+
+
 COUNTRIES = [
     "Canada",
     "United_States",
@@ -225,5 +246,43 @@ class Ledger:
             }
             for country, users in sorted(country_users.items())
         ]
-        return {"user_colors": user_colors, "countries": countries, "moves": moves}
+        players_legend = [
+            {"label": user, "color": user_colors[user]} for user in sorted(user_colors.keys())
+        ]
+        activity_feed = self._recent_activity_rows(48)
+        return {
+            "user_colors": user_colors,
+            "countries": countries,
+            "moves": moves,
+            "players_legend": players_legend,
+            "activity_feed": activity_feed,
+        }
+
+    def _recent_activity_rows(self, limit: int) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT event_type, actor_user, source_country, payload_json, ts
+                FROM events
+                ORDER BY id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                payload = json.loads(row["payload_json"])
+            except json.JSONDecodeError:
+                payload = {}
+            out.append(
+                {
+                    "event_type": row["event_type"],
+                    "actor_user": row["actor_user"],
+                    "source_country": row["source_country"],
+                    "ts": row["ts"],
+                    "summary": _activity_feed_summary(str(row["event_type"]), payload),
+                }
+            )
+        return out
 

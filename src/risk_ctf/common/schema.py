@@ -8,7 +8,16 @@ from typing import Any
 import json
 import re
 
-ALLOWED_EVENT_TYPES = {"user_login", "sudo_elevation", "remote_login"}
+ALLOWED_EVENT_TYPES = {
+    "user_login",
+    "sudo_elevation",
+    "remote_login",
+    "command_executed",
+    "tool_download",
+    "host_reboot",
+    "tamper_attempt",
+    "session_terminate",
+}
 ENTITY_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,128}$")
 
 
@@ -45,6 +54,16 @@ def _require_ts(name: str, value: Any) -> str:
         datetime.fromisoformat(parsed)
     except ValueError as exc:
         raise SchemaError(f"{name} must be ISO-8601") from exc
+    return value
+
+
+def _require_bounded_str(name: str, value: Any, max_len: int) -> str:
+    if not isinstance(value, str):
+        raise SchemaError(f"{name} must be a string")
+    if len(value) > max_len:
+        raise SchemaError(f"{name} exceeds maximum length")
+    if not value.strip():
+        raise SchemaError(f"{name} must be non-empty")
     return value
 
 
@@ -96,6 +115,25 @@ class EventEnvelope:
             )
             _require_entity("payload.protocol", payload.get("protocol"))
 
+        if event_type == "command_executed":
+            _require_bounded_str("payload.command_line", payload.get("command_line"), 512)
+
+        if event_type == "tool_download":
+            _require_bounded_str("payload.channel", payload.get("channel"), 64)
+            _require_bounded_str("payload.target", payload.get("target"), 2048)
+
+        if event_type == "host_reboot":
+            _require_bounded_str("payload.detail", payload.get("detail"), 512)
+
+        if event_type == "tamper_attempt":
+            _require_bounded_str("payload.path", payload.get("path"), 512)
+            _require_bounded_str("payload.observation", payload.get("observation"), 256)
+
+        if event_type == "session_terminate":
+            _require_entity("payload.target_user", payload.get("target_user"))
+            if payload.get("method") is not None:
+                _require_bounded_str("payload.method", payload["method"], 128)
+
         return EventEnvelope(
             event_type=event_type,
             event_id=event_id,
@@ -106,4 +144,3 @@ class EventEnvelope:
             source_country=source_country,
             payload=payload,
         )
-

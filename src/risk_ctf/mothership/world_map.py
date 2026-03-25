@@ -85,7 +85,8 @@ def enrich_dashboard_state(state: dict[str, Any]) -> None:
     state["world"] = {
         "map_name": "The Shattered Meridian",
         "map_subtitle": "Fictional theater — ten host-nations (one Monitor per nation). "
-        "Territory stays neutral until activity is ingested.",
+        "Territory stays visually neutral until activity is ingested. Phase 2 Monitors emit "
+        "commands, downloads, reboots, tamper hints, and session events (see activity feed).",
         "view_width": 1000,
         "view_height": 520,
         "nations": nations,

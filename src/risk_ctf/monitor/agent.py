@@ -18,6 +18,7 @@ class AgentConfig:
     auth_log_path: str
     secure_log_path: str
     shell_history_paths: tuple[str, ...]
+    integrity_paths: tuple[str, ...]
     poll_seconds: int = 5
     insecure_dev_tls: bool = False
 
@@ -47,6 +48,7 @@ def run_agent(config: AgentConfig) -> None:
             auth_log_path=config.auth_log_path,
             secure_log_path=config.secure_log_path,
             shell_history_paths=config.shell_history_paths,
+            integrity_paths=config.integrity_paths,
             source_host=source_host,
             source_country=state.assigned_country,
         )

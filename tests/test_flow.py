@@ -40,6 +40,25 @@ class FlowTests(unittest.TestCase):
                 state = ledger.dashboard_state()
                 self.assertIn("alice", state["user_colors"])
                 self.assertTrue(any(m["to"] == "Germany" for m in state["moves"]))
+                self.assertIn("activity_feed", state)
+                self.assertIn("players_legend", state)
+                self.assertTrue(any(f.get("event_type") == "remote_login" for f in state["activity_feed"]))
+
+                cmd = EventEnvelope.validate(
+                    {
+                        "event_type": "command_executed",
+                        "event_id": "evt_cmd",
+                        "ts": "2026-03-23T21:00:00Z",
+                        "monitor_id": reg["monitor_id"],
+                        "actor_user": "alice",
+                        "source_host": "host1",
+                        "source_country": "Canada",
+                        "payload": {"command_line": "id"},
+                    }
+                ).to_dict()
+                ledger.record_event(cmd)
+                state2 = ledger.dashboard_state()
+                self.assertTrue(any(f.get("event_type") == "command_executed" for f in state2["activity_feed"]))
             finally:
                 ledger.close()
 

@@ -34,6 +34,18 @@ class LedgerTests(unittest.TestCase):
             finally:
                 ledger.close()
 
+    def test_dashboard_state_has_phase2_feed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "ledger.db")
+            ledger = Ledger(db)
+            try:
+                state = ledger.dashboard_state()
+                self.assertIn("activity_feed", state)
+                self.assertIn("players_legend", state)
+                self.assertIsInstance(state["activity_feed"], list)
+            finally:
+                ledger.close()
+
 
 if __name__ == "__main__":
     unittest.main()
