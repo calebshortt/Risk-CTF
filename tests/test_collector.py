@@ -98,6 +98,7 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "command_executed")
         self.assertEqual(events[0]["actor_user"], "carol")
+        self.assertEqual(events[0]["payload"]["executed_command"], events[0]["payload"]["command_line"])
 
     def test_shell_plain_line_is_command_executed(self) -> None:
         cfg = CollectorConfig(
@@ -114,6 +115,7 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(events[0]["event_type"], "command_executed")
         self.assertEqual(events[0]["actor_user"], "dave")
         self.assertIn("echo", events[0]["payload"]["command_line"])
+        self.assertEqual(events[0]["payload"]["executed_command"], events[0]["payload"]["command_line"])
 
     def test_actor_from_shell_history_path(self) -> None:
         if os.name == "nt":

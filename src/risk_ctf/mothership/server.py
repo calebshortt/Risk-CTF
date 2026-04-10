@@ -317,19 +317,30 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     </div>
   </main>
   <script>
-    const state = {state_json};
-    const w = state.world;
-    const vw = w.view_width;
-    const vh = w.view_height;
+    const initialState = {state_json};
     const svg = document.getElementById("world-svg");
-    svg.setAttribute("viewBox", `0 0 ${{vw}} ${{vh}}`);
-
-    document.getElementById("map-title").textContent = w.map_name + " — ten host-nations, two starting players (opposite shores).";
-    document.getElementById("map-sub").textContent = w.map_subtitle;
-
+    const leg = document.getElementById("player-legend");
+    const feedBody = document.getElementById("activity-feed");
+    const countriesEl = document.getElementById("countries");
+    const movesEl = document.getElementById("moves");
+    const popup = document.getElementById("popup");
+    const mapTitleEl = document.getElementById("map-title");
+    const mapSubEl = document.getElementById("map-sub");
+    const popupSeen = new Set();
     const ns = "http://www.w3.org/2000/svg";
-    const byKey = {{}};
-    w.nations.forEach((n) => {{ byKey[n.key] = n; }});
+
+    function renderDashboard(state) {{
+      const w = state.world;
+      const vw = w.view_width;
+      const vh = w.view_height;
+      svg.setAttribute("viewBox", `0 0 ${{vw}} ${{vh}}`);
+      mapTitleEl.textContent = w.map_name + " — ten host-nations, two starting players (opposite shores).";
+      mapSubEl.textContent = w.map_subtitle;
+
+      const byKey = {{}};
+      w.nations.forEach((n) => {{ byKey[n.key] = n; }});
+
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
 
     // Faint fictional landmasses (west / east) — decorative only
     const landW = document.createElementNS(ns, "path");
@@ -451,7 +462,7 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     }});
     svg.appendChild(playersG);
 
-    const leg = document.getElementById("player-legend");
+    leg.replaceChildren();
     w.players.forEach((p) => {{
       const div = document.createElement("div");
       div.className = "legend-item";
@@ -465,18 +476,17 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
       leg.appendChild(div);
     }});
 
-    const feedBody = document.getElementById("activity-feed");
+    feedBody.replaceChildren();
     (state.activity_feed || []).forEach((row) => {{
       const tr = document.createElement("tr");
-      const tds = [row.ts || "", row.actor_user || "", row.source_country || "", row.summary || ""];
+      const cmd = (row.executed_command || "").trim();
+      const summaryText = cmd || (row.summary || "");
+      const tds = [row.ts || "", row.actor_user || "", row.source_country || "", summaryText];
       tr.innerHTML = "<td>" + tds.map((c) => String(c).replace(/&/g,"&amp;").replace(/</g,"&lt;")).join("</td><td>") + "</td>";
       feedBody.appendChild(tr);
     }});
 
-    const countriesEl = document.getElementById("countries");
-    const movesEl = document.getElementById("moves");
-    const popup = document.getElementById("popup");
-    const seen = new Set();
+    countriesEl.replaceChildren();
 
     (state.countries || []).forEach((country) => {{
       const node = document.createElement("div");
@@ -487,8 +497,8 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
 
       country.users.forEach(user => {{
         const key = `${{user}}:${{country.country}}`;
-        if (!seen.has(key)) {{
-          seen.add(key);
+        if (!popupSeen.has(key)) {{
+          popupSeen.add(key);
           popup.textContent = `${{user}} captured ${{country.country}}`;
           popup.style.display = "block";
           setTimeout(() => {{ popup.style.display = "none"; }}, 3000);
@@ -496,12 +506,23 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
       }});
     }});
 
+    movesEl.replaceChildren();
     (state.moves || []).forEach((move) => {{
       const li = document.createElement("li");
       li.textContent = `${{move.user}} moved: ${{move.from}} -> ${{move.to}}`;
       li.style.color = move.color;
       movesEl.appendChild(li);
     }});
+    }}
+
+    renderDashboard(initialState);
+    setInterval(async () => {{
+      try {{
+        const res = await fetch("/api/v1/dashboard/state");
+        if (!res.ok) return;
+        renderDashboard(await res.json());
+      }} catch (err) {{}}
+    }}, 5000);
   </script>
 </body>
 </html>"""

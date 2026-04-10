@@ -56,6 +56,7 @@ class LedgerPhase2Tests(unittest.TestCase):
                 self.assertEqual(feed[1]["event_type"], "command_executed")
                 self.assertIn("wget", feed[0]["summary"])
                 self.assertIn("ls", feed[1]["summary"])
+                self.assertEqual(feed[1].get("executed_command"), "ls")
                 legend = state["players_legend"]
                 labels = {x["label"] for x in legend}
                 self.assertIn("u1", labels)

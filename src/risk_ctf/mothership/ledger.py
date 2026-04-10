@@ -13,9 +13,15 @@ from typing import Any
 _ACTIVITY_SUMMARY_MAX = 512
 
 
+def _executed_command_text(payload: dict[str, Any]) -> str:
+    return str(payload.get("executed_command") or payload.get("command_line", ""))[
+        :_ACTIVITY_SUMMARY_MAX
+    ]
+
+
 def _activity_feed_summary(event_type: str, payload: dict[str, Any]) -> str:
     if event_type == "command_executed":
-        return str(payload.get("command_line", ""))[:_ACTIVITY_SUMMARY_MAX]
+        return _executed_command_text(payload)
     if event_type == "sensitive_file_access":
         return str(payload.get("command_line", ""))[:_ACTIVITY_SUMMARY_MAX]
     if event_type == "tool_download":
@@ -289,13 +295,17 @@ class Ledger:
                 payload = json.loads(row["payload_json"])
             except json.JSONDecodeError:
                 payload = {}
+            et = str(row["event_type"])
             out.append(
                 {
-                    "event_type": row["event_type"],
+                    "event_type": et,
                     "actor_user": row["actor_user"],
                     "source_country": row["source_country"],
                     "ts": row["ts"],
-                    "summary": _activity_feed_summary(str(row["event_type"]), payload),
+                    "summary": _activity_feed_summary(et, payload),
+                    "executed_command": _executed_command_text(payload)
+                    if et == "command_executed"
+                    else "",
                 }
             )
         return out

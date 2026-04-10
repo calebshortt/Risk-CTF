@@ -67,6 +67,17 @@ class SchemaPhase2Tests(unittest.TestCase):
         with self.assertRaises(SchemaError):
             EventEnvelope.validate(env)
 
+    def test_command_executed_optional_executed_command(self) -> None:
+        env = _minimal_envelope("command_executed")
+        env["payload"]["executed_command"] = "whoami"
+        self.assertEqual(EventEnvelope.validate(env).event_type, "command_executed")
+
+    def test_command_executed_rejects_overlong_executed_command(self) -> None:
+        env = _minimal_envelope("command_executed")
+        env["payload"]["executed_command"] = "y" * 513
+        with self.assertRaises(SchemaError):
+            EventEnvelope.validate(env)
+
 
 if __name__ == "__main__":
     unittest.main()

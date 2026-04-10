@@ -119,6 +119,10 @@ class EventEnvelope:
 
         if event_type == "command_executed":
             _require_bounded_str("payload.command_line", payload.get("command_line"), 512)
+            if payload.get("executed_command") is not None:
+                _require_bounded_str(
+                    "payload.executed_command", payload["executed_command"], 512
+                )
 
         if event_type == "tool_download":
             _require_bounded_str("payload.channel", payload.get("channel"), 64)

@@ -343,7 +343,7 @@ class MonitorCollector:
                 monitor_id=monitor_id,
                 user=shell_actor,
                 event_type="command_executed",
-                payload={"command_line": cmd},
+                payload={"command_line": cmd, "executed_command": cmd},
             )
         ]
 
