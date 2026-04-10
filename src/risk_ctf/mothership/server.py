@@ -308,10 +308,10 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     <h3 class="section">Movements</h3>
     <ul id="moves"></ul>
     <h3 class="section">Recent activity</h3>
-    <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">Latest ingested events; summary shows the command or context when available.</p>
+    <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">Latest ingested events. Summary shows the command run on the host when captured; otherwise a short context note.</p>
     <div class="feed-wrap">
       <table class="feed" aria-label="Recent activity">
-        <thead><tr><th>Time</th><th>Actor</th><th>Nation</th><th>Summary</th></tr></thead>
+        <thead><tr><th>Time</th><th>Actor</th><th>Nation</th><th>Summary (host command)</th></tr></thead>
         <tbody id="activity-feed"></tbody>
       </table>
     </div>
@@ -479,8 +479,7 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     feedBody.replaceChildren();
     (state.activity_feed || []).forEach((row) => {{
       const tr = document.createElement("tr");
-      const cmd = (row.executed_command || "").trim();
-      const summaryText = cmd || (row.summary || "");
+      const summaryText = String(row.summary || "").trim();
       const tds = [row.ts || "", row.actor_user || "", row.source_country || "", summaryText];
       tr.innerHTML = "<td>" + tds.map((c) => String(c).replace(/&/g,"&amp;").replace(/</g,"&lt;")).join("</td><td>") + "</td>";
       feedBody.appendChild(tr);
@@ -509,7 +508,14 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     movesEl.replaceChildren();
     (state.moves || []).forEach((move) => {{
       const li = document.createElement("li");
-      li.textContent = `${{move.user}} moved: ${{move.from}} -> ${{move.to}}`;
+      const cmd = (move.command || "").trim();
+      if (move.kind === "command" && cmd) {{
+        li.textContent = `${{move.user}} @ ${{move.from}}: ${{cmd}}`;
+      }} else if (cmd) {{
+        li.textContent = `${{move.user}} moved: ${{move.from}} -> ${{move.to}} — ${{cmd}}`;
+      }} else {{
+        li.textContent = `${{move.user}} moved: ${{move.from}} -> ${{move.to}}`;
+      }}
       li.style.color = move.color;
       movesEl.appendChild(li);
     }});

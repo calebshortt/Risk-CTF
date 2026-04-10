@@ -19,6 +19,35 @@ def _executed_command_text(payload: dict[str, Any]) -> str:
     ]
 
 
+def _parse_payload_json(raw: Any) -> dict[str, Any]:
+    if raw is None or raw == "":
+        return {}
+    try:
+        obj = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    return obj if isinstance(obj, dict) else {}
+
+
+def _command_text_for_event(event_type: str, payload: dict[str, Any]) -> str:
+    """Human-readable command / invocation line for dashboard columns."""
+    if event_type == "command_executed":
+        return _executed_command_text(payload).strip()
+    if event_type == "sensitive_file_access":
+        return str(payload.get("command_line", "")).strip()[:_ACTIVITY_SUMMARY_MAX]
+    if event_type == "tool_download":
+        return (
+            f"{payload.get('channel', '?')}: {payload.get('target', '')}".strip()
+        )[:_ACTIVITY_SUMMARY_MAX]
+    if event_type == "remote_login":
+        host = str(payload.get("destination_host", "")).strip()
+        proto = str(payload.get("protocol", "ssh")).strip()
+        if host:
+            return f"{proto} {host}"[:_ACTIVITY_SUMMARY_MAX]
+        return ""
+    return ""
+
+
 def _activity_feed_summary(event_type: str, payload: dict[str, Any]) -> str:
     if event_type == "command_executed":
         return _executed_command_text(payload)
@@ -220,7 +249,7 @@ class Ledger:
         with self._lock:
             rows = self._conn.execute(
                 """
-                SELECT actor_user, source_country, destination_country, event_type
+                SELECT actor_user, source_country, destination_country, event_type, payload_json
                 FROM events
                 ORDER BY id ASC
                 """
@@ -228,7 +257,7 @@ class Ledger:
 
         user_colors: dict[str, str] = {}
         country_users: dict[str, set[str]] = {}
-        moves: list[dict[str, str]] = []
+        moves: list[dict[str, Any]] = []
         color_pool = [
             "#ff006e",
             "#3a86ff",
@@ -246,17 +275,35 @@ class Ledger:
 
             source = str(row["source_country"])
             country_users.setdefault(source, set()).add(user)
-            if row["event_type"] == "remote_login" and row["destination_country"]:
+            payload = _parse_payload_json(row["payload_json"])
+            et = str(row["event_type"])
+            if et == "remote_login" and row["destination_country"]:
                 destination = str(row["destination_country"])
                 country_users.setdefault(destination, set()).add(user)
+                cmd = _command_text_for_event("remote_login", payload)
                 moves.append(
                     {
                         "user": user,
                         "from": source,
                         "to": destination,
                         "color": user_colors[user],
+                        "kind": "remote",
+                        "command": cmd,
                     }
                 )
+            elif et == "command_executed":
+                cmd = _command_text_for_event("command_executed", payload)
+                if cmd:
+                    moves.append(
+                        {
+                            "user": user,
+                            "from": source,
+                            "to": source,
+                            "color": user_colors[user],
+                            "kind": "command",
+                            "command": cmd,
+                        }
+                    )
 
         countries = [
             {
@@ -284,6 +331,7 @@ class Ledger:
                 """
                 SELECT event_type, actor_user, source_country, payload_json, ts
                 FROM events
+                WHERE event_type != 'monitor_heartbeat'
                 ORDER BY id DESC
                 LIMIT ?
                 """,
@@ -291,18 +339,23 @@ class Ledger:
             ).fetchall()
         out: list[dict[str, Any]] = []
         for row in rows:
-            try:
-                payload = json.loads(row["payload_json"])
-            except json.JSONDecodeError:
-                payload = {}
+            payload = _parse_payload_json(row["payload_json"])
             et = str(row["event_type"])
+            cmd_text = _command_text_for_event(et, payload)
+            # Summary column: prefer the command / invocation observed on the host.
+            summary = (
+                cmd_text.strip()
+                if cmd_text.strip()
+                else _activity_feed_summary(et, payload)
+            )
             out.append(
                 {
                     "event_type": et,
                     "actor_user": row["actor_user"],
                     "source_country": row["source_country"],
                     "ts": row["ts"],
-                    "summary": _activity_feed_summary(et, payload),
+                    "summary": summary,
+                    "command_text": cmd_text,
                     "executed_command": _executed_command_text(payload)
                     if et == "command_executed"
                     else "",
