@@ -223,6 +223,10 @@ class Ledger:
             self._conn.commit()
 
     def record_event(self, event: dict[str, Any]) -> None:
+        # Heartbeats carry no host activity; omit from the ledger so the dashboard only reflects
+        # real events (nonce is still recorded by the API handler before ingest).
+        if event.get("event_type") == "monitor_heartbeat":
+            return
         payload = event["payload"]
         destination_country = payload.get("destination_country")
         with self._lock:
@@ -251,6 +255,7 @@ class Ledger:
                 """
                 SELECT actor_user, source_country, destination_country, event_type, payload_json
                 FROM events
+                WHERE event_type != 'monitor_heartbeat'
                 ORDER BY id ASC
                 """
             ).fetchall()

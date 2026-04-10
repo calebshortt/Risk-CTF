@@ -59,7 +59,7 @@ Risk-CTF has two Python components:
 Authoritative set: **`risk_ctf.common.schema.ALLOWED_EVENT_TYPES`**
 
 - `user_login`, `sudo_elevation`, `remote_login`
-- **Phase 2:** `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`, `sensitive_file_access` (e.g. `/etc/passwd` in shell or auth logs), `monitor_heartbeat` (periodic mothership ping)
+- **Phase 2:** `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`, `sensitive_file_access` (e.g. `/etc/passwd` in shell or auth logs), `monitor_heartbeat` (schema-valid; mothership **does not persist** it and the agent **does not send** idle pings—dashboard updates only on substantive events)
 
 **Integrity / tamper:** default baseline = `*.py` under the Monitor package (`default_integrity_paths()`). CLI: **`--no-integrity-check`**, **`--integrity-path`** (repeatable). Heuristic only—not EDR-grade.
 

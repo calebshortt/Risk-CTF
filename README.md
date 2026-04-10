@@ -34,7 +34,7 @@ After setup, start services with [`deploy/start_mothership.ps1`](deploy/start_mo
 | **Transport / API** | TLS for Monitor traffic; HMAC request signing; timestamp + nonce anti-replay; strict JSON schemas. |
 | **Mothership** | SQLite ledger; HTTPS listener for register + ingest; optional second listener for dashboard-only HTTP (`--http-dashboard-port`, default `8080`, use `0` to disable). |
 | **Dashboard** | Fictional map (10 host-nations), scenario starter players, multi-user color highlights, movement edges, recent **activity feed**, ~3s capture popups. |
-| **Monitor (Phase 2)** | Event types: `user_login`, `sudo_elevation`, `remote_login`, `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`, `sensitive_file_access`, `monitor_heartbeat`. Optional **integrity** baseline on Monitor `*.py` files (tamper hints). Default poll/heartbeat interval **10s**. |
+| **Monitor (Phase 2)** | Event types: `user_login`, `sudo_elevation`, `remote_login`, `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`, `sensitive_file_access`, `monitor_heartbeat` (accepted at the API but **not stored**; the agent does not send idle heartbeats). Optional **integrity** baseline on Monitor `*.py` files (tamper hints). Default poll interval **10s**. |
 
 ## Manual quick start (alternative to setup scripts)
 

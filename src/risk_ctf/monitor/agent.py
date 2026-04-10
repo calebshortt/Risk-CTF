@@ -68,9 +68,4 @@ def _poll_once(client: MonitorClient, state: MonitorState, collector: MonitorCol
                 print(f"event accepted: {event['event_type']}:{event['event_id']}")
         except Exception as exc:  # noqa: BLE001
             print(f"send failed: {exc}")
-    hb = collector.heartbeat_event(state.monitor_id)
-    try:
-        client.send_event(state, hb)
-    except Exception as exc:  # noqa: BLE001
-        print(f"heartbeat send failed: {exc}")
 

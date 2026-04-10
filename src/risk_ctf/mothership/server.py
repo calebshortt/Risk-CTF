@@ -527,7 +527,9 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
         const res = await fetch("/api/v1/dashboard/state");
         if (!res.ok) return;
         renderDashboard(await res.json());
-      }} catch (err) {{}}
+      }} catch (err) {{
+        console.warn("dashboard state refresh failed", err);
+      }}
     }}, 5000);
   </script>
 </body>
