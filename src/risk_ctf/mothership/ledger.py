@@ -27,6 +27,10 @@ def _activity_feed_summary(event_type: str, payload: dict[str, Any]) -> str:
         return f"login ip={payload.get('source_ip', '')}"
     if event_type == "sudo_elevation":
         return str(payload.get("method", ""))
+    if event_type == "sensitive_file_access":
+        return f"{payload.get('path', '')}: {str(payload.get('command_line', ''))[:100]}"
+    if event_type == "monitor_heartbeat":
+        return "monitor alive"
     return event_type
 
 

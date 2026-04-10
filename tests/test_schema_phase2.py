@@ -29,13 +29,15 @@ def _minimal_envelope(event_type: str) -> dict:
         "host_reboot": {"detail": "system is rebooting"},
         "tamper_attempt": {"path": "/a/b.py", "observation": "size_changed"},
         "session_terminate": {"target_user": "bob"},
+        "sensitive_file_access": {"path": "/etc/passwd", "command_line": "cat /etc/passwd"},
+        "monitor_heartbeat": {},
     }
     return {"event_type": event_type, "payload": payloads[event_type], **common}
 
 
 class SchemaPhase2Tests(unittest.TestCase):
     def test_every_allowed_event_type_validates(self) -> None:
-        self.assertEqual(len(ALLOWED_EVENT_TYPES), 8)
+        self.assertEqual(len(ALLOWED_EVENT_TYPES), 10)
         for et in sorted(ALLOWED_EVENT_TYPES):
             with self.subTest(event_type=et):
                 env = _minimal_envelope(et)

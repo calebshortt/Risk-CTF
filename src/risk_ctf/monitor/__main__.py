@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
         default=list(default_shell_hist),
         help="Can be provided multiple times",
     )
-    parser.add_argument("--poll-seconds", type=int, default=5)
+    parser.add_argument("--poll-seconds", type=int, default=10)
     parser.add_argument("--insecure-dev-tls", action="store_true")
     parser.add_argument(
         "--no-integrity-check",

@@ -25,7 +25,7 @@ From the **repository root**, use the scripts that create a **`.venv`**, install
 | **Skip certs only** | `-SkipCert` or `--skip-cert` |
 | **Own venv** | `-NoVenv` or `--no-venv` |
 
-After setup, start services with [`deploy/start_mothership.ps1`](deploy/start_mothership.ps1) / [`deploy/start_monitor.ps1`](deploy/start_monitor.ps1) or the `python -m risk_ctf.*` commands below.
+After setup, start services with [`deploy/start_mothership.ps1`](deploy/start_mothership.ps1) / [`deploy/start_monitor.ps1`](deploy/start_monitor.ps1) on Windows, or [`deploy/start_mothership.sh`](deploy/start_mothership.sh) / [`deploy/start_monitor.sh`](deploy/start_monitor.sh) on Linux/macOS (`chmod +x` once), or the `python -m risk_ctf.*` commands below.
 
 ## Feature summary
 
@@ -34,7 +34,7 @@ After setup, start services with [`deploy/start_mothership.ps1`](deploy/start_mo
 | **Transport / API** | TLS for Monitor traffic; HMAC request signing; timestamp + nonce anti-replay; strict JSON schemas. |
 | **Mothership** | SQLite ledger; HTTPS listener for register + ingest; optional second listener for dashboard-only HTTP (`--http-dashboard-port`, default `8080`, use `0` to disable). |
 | **Dashboard** | Fictional map (10 host-nations), scenario starter players, multi-user color highlights, movement edges, recent **activity feed**, ~3s capture popups. |
-| **Monitor (Phase 2)** | Event types: `user_login`, `sudo_elevation`, `remote_login`, `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`. Optional **integrity** baseline on Monitor `*.py` files (tamper hints). |
+| **Monitor (Phase 2)** | Event types: `user_login`, `sudo_elevation`, `remote_login`, `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`, `sensitive_file_access`, `monitor_heartbeat`. Optional **integrity** baseline on Monitor `*.py` files (tamper hints). Default poll/heartbeat interval **10s**. |
 
 ## Manual quick start (alternative to setup scripts)
 
@@ -56,7 +56,7 @@ After setup, start services with [`deploy/start_mothership.ps1`](deploy/start_mo
 4. **Monitor:**
 
    ```text
-   python -m risk_ctf.monitor --mothership-base-url https://127.0.0.1:8443 --state-file ./monitor_state.json --insecure-dev-tls
+   python -m risk_ctf.monitor --mothership-base-url https://127.0.0.1:8443 --state-file ./monitor_state.json --poll-seconds 10 --insecure-dev-tls
    ```
 
    Useful flags: `--no-integrity-check`, `--integrity-path`, `--auth-log-path`, `--secure-log-path`, `--shell-history-path`.  
@@ -66,7 +66,7 @@ After setup, start services with [`deploy/start_mothership.ps1`](deploy/start_mo
 
 - **Monitor** defaults are platform-aware (`risk_ctf.monitor.collector.default_collector_paths()`).
 - **Windows:** `deploy/setup_*.ps1`, `deploy/start_*.ps1`.
-- **Unix:** `deploy/setup_*.sh` (use `chmod +x` once if needed).
+- **Unix:** `deploy/setup_*.sh` and `deploy/start_*.sh` (use `chmod +x` once if needed).
 - **Linux** service examples: `deploy/monitor.service.example`, `deploy/mothership.service.example`.
 
 ## Tests
@@ -74,8 +74,15 @@ After setup, start services with [`deploy/start_mothership.ps1`](deploy/start_mo
 From the repo root (with the package on `PYTHONPATH`):
 
 ```text
+# Windows (cmd)
 set PYTHONPATH=src
 python -m unittest discover -s tests -p "test_*.py"
+```
+
+```text
+# Linux / macOS
+export PYTHONPATH=src
+python3 -m unittest discover -s tests -p "test_*.py"
 ```
 
 If you used `pip install -e .`, you can omit `PYTHONPATH`.

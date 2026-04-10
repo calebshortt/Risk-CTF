@@ -4,7 +4,7 @@ param(
   [string]$SourceCountry = "Unknown",
   [string]$AuthLogPath = "C:\ProgramData\RiskCTF\security.log",
   [string]$SecureLogPath = "C:\ProgramData\ssh\logs\sshd.log",
-  [int]$PollSeconds = 5
+  [int]$PollSeconds = 10
 )
 
 $env:PYTHONPATH = "src"

@@ -17,6 +17,8 @@ ALLOWED_EVENT_TYPES = {
     "host_reboot",
     "tamper_attempt",
     "session_terminate",
+    "sensitive_file_access",
+    "monitor_heartbeat",
 }
 ENTITY_RE = re.compile(r"^[A-Za-z0-9_.@:-]{1,128}$")
 
@@ -133,6 +135,10 @@ class EventEnvelope:
             _require_entity("payload.target_user", payload.get("target_user"))
             if payload.get("method") is not None:
                 _require_bounded_str("payload.method", payload["method"], 128)
+
+        if event_type == "sensitive_file_access":
+            _require_bounded_str("payload.path", payload.get("path"), 512)
+            _require_bounded_str("payload.command_line", payload.get("command_line"), 512)
 
         return EventEnvelope(
             event_type=event_type,

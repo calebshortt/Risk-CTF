@@ -59,7 +59,7 @@ Risk-CTF has two Python components:
 Authoritative set: **`risk_ctf.common.schema.ALLOWED_EVENT_TYPES`**
 
 - `user_login`, `sudo_elevation`, `remote_login`
-- **Phase 2:** `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`
+- **Phase 2:** `command_executed`, `tool_download`, `host_reboot`, `tamper_attempt`, `session_terminate`, `sensitive_file_access` (e.g. `/etc/passwd` in shell or auth logs), `monitor_heartbeat` (periodic mothership ping)
 
 **Integrity / tamper:** default baseline = `*.py` under the Monitor package (`default_integrity_paths()`). CLI: **`--no-integrity-check`**, **`--integrity-path`** (repeatable). Heuristic only—not EDR-grade.
 
@@ -85,7 +85,7 @@ Authoritative set: **`risk_ctf.common.schema.ALLOWED_EVENT_TYPES`**
 ## Operational commands
 
 - **Setup:** `deploy/setup_mothership.ps1` / `deploy/setup_mothership.sh` and `deploy/setup_monitor.ps1` / `deploy/setup_monitor.sh` (see **Packaging and install** above).
-- **Run:** `deploy/start_mothership.ps1`, `deploy/start_monitor.ps1`, or `python -m risk_ctf.mothership` / `python -m risk_ctf.monitor`.
+- **Run:** `deploy/start_mothership.ps1`, `deploy/start_monitor.ps1` (Windows) or `deploy/start_mothership.sh`, `deploy/start_monitor.sh` (Unix), or `python -m risk_ctf.mothership` / `python -m risk_ctf.monitor`.
 - Mothership requires `--db-path`, `--tls-cert`, `--tls-key`.
 - Monitor requires `--mothership-base-url`, `--state-file`; use `--insecure-dev-tls` only for dev self-signed CAs.
 

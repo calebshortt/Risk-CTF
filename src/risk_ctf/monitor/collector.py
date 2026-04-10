@@ -51,6 +51,8 @@ IWR_RE = re.compile(
     re.IGNORECASE,
 )
 BITS_RE = re.compile(r"\bbitsadmin\b.{0,200}", re.IGNORECASE)
+# Match /etc/passwd but not /etc/passwd-, /etc/passwd.bak, etc.
+ETC_PASSWD_RE = re.compile(r"/etc/passwd(?![A-Za-z0-9_.-])")
 
 
 @dataclass
@@ -132,6 +134,14 @@ class MonitorCollector:
     def _parse_auth_line(self, line: str, monitor_id: str) -> dict | None:
         if not self._new_line(line):
             return None
+        if ETC_PASSWD_RE.search(line):
+            cmd = line.strip()[:512]
+            return self._base_event(
+                monitor_id=monitor_id,
+                user="unknown",
+                event_type="sensitive_file_access",
+                payload={"path": "/etc/passwd", "command_line": cmd},
+            )
         login = LOGIN_RE.search(line)
         if login:
             user = login.group("user")
@@ -248,6 +258,16 @@ class MonitorCollector:
         stripped = line.strip()
         if not stripped:
             return []
+        if ETC_PASSWD_RE.search(stripped):
+            cmd = stripped[:512]
+            return [
+                self._base_event(
+                    monitor_id=monitor_id,
+                    user="unknown",
+                    event_type="sensitive_file_access",
+                    payload={"path": "/etc/passwd", "command_line": cmd},
+                )
+            ]
         dl = self._try_tool_download(stripped, monitor_id)
         if dl:
             return [dl]
@@ -318,6 +338,14 @@ class MonitorCollector:
                         )
                     )
         return out
+
+    def heartbeat_event(self, monitor_id: str) -> dict:
+        return self._base_event(
+            monitor_id=monitor_id,
+            user="system",
+            event_type="monitor_heartbeat",
+            payload={},
+        )
 
 
 def default_collector_paths() -> tuple[str, str, tuple[str, ...]]:

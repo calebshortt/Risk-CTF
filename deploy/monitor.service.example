@@ -1,3 +1,12 @@
+# Risk-CTF Monitor (Linux systemd)
+#
+# Hardening notes:
+# - ProtectHome=read-only: shell history lives under /home and /root; "true" would block reads
+#   needed for command_executed and /etc/passwd heuristics in history.
+# - auth.log/secure: on Debian/Ubuntu, /var/log/auth.log is often adm-readable (640). Add the
+#   service user to group "adm", e.g.: sudo usermod -aG adm riskmonitor
+# - Use a proper CA-trusted mothership URL in production; drop --insecure-dev-tls when you do.
+
 [Unit]
 Description=Risk-CTF Monitor
 After=network-online.target
@@ -7,12 +16,16 @@ Wants=network-online.target
 Type=simple
 User=riskmonitor
 Group=riskmonitor
-ExecStart=/usr/bin/python3 -m risk_ctf.monitor --mothership-base-url https://mothership.local:8443 --state-file /var/lib/risk-ctf/monitor_state.json
+ExecStart=/usr/bin/python3 -m risk_ctf.monitor \
+  --mothership-base-url https://mothership.local:8443 \
+  --state-file /var/lib/risk-ctf/monitor_state.json \
+  --poll-seconds 10 \
+  --insecure-dev-tls
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
-ProtectHome=true
+ProtectHome=read-only
 PrivateTmp=true
 ReadWritePaths=/var/lib/risk-ctf
 

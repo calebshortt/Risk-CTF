@@ -19,7 +19,7 @@ class AgentConfig:
     secure_log_path: str
     shell_history_paths: tuple[str, ...]
     integrity_paths: tuple[str, ...]
-    poll_seconds: int = 5
+    poll_seconds: int = 10
     insecure_dev_tls: bool = False
 
 
@@ -68,4 +68,9 @@ def _poll_once(client: MonitorClient, state: MonitorState, collector: MonitorCol
                 print(f"event accepted: {event['event_type']}:{event['event_id']}")
         except Exception as exc:  # noqa: BLE001
             print(f"send failed: {exc}")
+    hb = collector.heartbeat_event(state.monitor_id)
+    try:
+        client.send_event(state, hb)
+    except Exception as exc:  # noqa: BLE001
+        print(f"heartbeat send failed: {exc}")
 

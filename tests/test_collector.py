@@ -46,6 +46,51 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "tool_download")
 
+    def test_shell_etc_passwd_emits_sensitive_file_access(self) -> None:
+        cfg = CollectorConfig(
+            auth_log_path="/nonexistent",
+            secure_log_path="/nonexistent",
+            shell_history_paths=(),
+            integrity_paths=(),
+            source_host="h",
+            source_country="X",
+        )
+        col = MonitorCollector(cfg)
+        events = col._parse_shell_line("cat /etc/passwd\n", "m1")  # noqa: SLF001
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "sensitive_file_access")
+        self.assertEqual(events[0]["payload"]["path"], "/etc/passwd")
+        self.assertIn("/etc/passwd", events[0]["payload"]["command_line"])
+
+    def test_auth_line_etc_passwd_emits_sensitive_file_access(self) -> None:
+        cfg = CollectorConfig(
+            auth_log_path="/nonexistent",
+            secure_log_path="/nonexistent",
+            shell_history_paths=(),
+            integrity_paths=(),
+            source_host="h",
+            source_country="Canada",
+        )
+        col = MonitorCollector(cfg)
+        line = "Mar 23 12:00:00 sudo: user ran cat /etc/passwd\n"
+        ev = col._parse_auth_line(line, "m1")  # noqa: SLF001
+        self.assertIsNotNone(ev)
+        self.assertEqual(ev["event_type"], "sensitive_file_access")
+
+    def test_etc_passwd_suffix_not_matched(self) -> None:
+        cfg = CollectorConfig(
+            auth_log_path="/nonexistent",
+            secure_log_path="/nonexistent",
+            shell_history_paths=(),
+            integrity_paths=(),
+            source_host="h",
+            source_country="X",
+        )
+        col = MonitorCollector(cfg)
+        events = col._parse_shell_line("diff /etc/passwd.bak /tmp/x\n", "m1")  # noqa: SLF001
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["event_type"], "command_executed")
+
     def test_shell_plain_line_is_command_executed(self) -> None:
         cfg = CollectorConfig(
             auth_log_path="/nonexistent",
