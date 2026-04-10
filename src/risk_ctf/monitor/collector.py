@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import getpass
 import hashlib
 import os
 import re
 from pathlib import Path
 from typing import Iterable
 
-from risk_ctf.common.schema import now_utc_iso
+from risk_ctf.common.schema import ENTITY_RE, now_utc_iso
 
 LOGIN_RE = re.compile(r"Accepted .* for (?P<user>[A-Za-z0-9_.-]+) from (?P<ip>[0-9a-fA-F:.]+)")
 SUDO_RE = re.compile(r"sudo: +(?P<user>[A-Za-z0-9_.-]+) :")
@@ -53,6 +54,55 @@ IWR_RE = re.compile(
 BITS_RE = re.compile(r"\bbitsadmin\b.{0,200}", re.IGNORECASE)
 # Match /etc/passwd but not /etc/passwd-, /etc/passwd.bak, etc.
 ETC_PASSWD_RE = re.compile(r"/etc/passwd(?![A-Za-z0-9_.-])")
+
+
+def _fallback_monitor_actor() -> str:
+    try:
+        u = getpass.getuser()
+        if u:
+            u = u.split("\\")[-1].strip()[:128]
+            if ENTITY_RE.fullmatch(u):
+                return u
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _sanitize_actor_user(name: str) -> str:
+    raw = (name or "").strip()
+    if "\\" in raw:
+        raw = raw.split("\\")[-1].strip()
+    raw = raw[:128]
+    if not raw:
+        return _fallback_monitor_actor()
+    if ENTITY_RE.fullmatch(raw):
+        return raw
+    cleaned = re.sub(r"[^A-Za-z0-9_.@:-]+", "_", raw).strip("_")[:128]
+    if cleaned and ENTITY_RE.fullmatch(cleaned):
+        return cleaned
+    return _fallback_monitor_actor()
+
+
+def actor_user_from_shell_history_path(path: str) -> str:
+    """Map a shell history file path to the OS account that owns that history."""
+    raw = Path(path).expanduser()
+    try:
+        p = raw.resolve()
+    except OSError:
+        p = raw
+    parts = p.parts
+    if os.name == "nt":
+        lower = [x.lower() for x in parts]
+        if "users" in lower:
+            i = lower.index("users")
+            if i + 1 < len(parts):
+                return _sanitize_actor_user(parts[i + 1])
+        return _fallback_monitor_actor()
+    if len(parts) >= 2 and parts[1] == "root":
+        return _sanitize_actor_user("root")
+    if len(parts) >= 3 and parts[1] == "home":
+        return _sanitize_actor_user(parts[2])
+    return _fallback_monitor_actor()
 
 
 @dataclass
@@ -100,8 +150,9 @@ class MonitorCollector:
             if event:
                 events.append(event)
         for hist_path in self._cfg.shell_history_paths:
+            shell_actor = actor_user_from_shell_history_path(hist_path)
             for line in self._read_existing_lines(hist_path):
-                events.extend(self._parse_shell_line(line, monitor_id))
+                events.extend(self._parse_shell_line(line, monitor_id, shell_actor))
         events.extend(self._integrity_events(monitor_id))
         return events
 
@@ -138,13 +189,13 @@ class MonitorCollector:
             cmd = line.strip()[:512]
             return self._base_event(
                 monitor_id=monitor_id,
-                user="unknown",
+                user=_fallback_monitor_actor(),
                 event_type="sensitive_file_access",
                 payload={"path": "/etc/passwd", "command_line": cmd},
             )
         login = LOGIN_RE.search(line)
         if login:
-            user = login.group("user")
+            user = _sanitize_actor_user(login.group("user"))
             return self._base_event(
                 monitor_id=monitor_id,
                 user=user,
@@ -153,7 +204,7 @@ class MonitorCollector:
             )
         sudo = SUDO_RE.search(line)
         if sudo:
-            user = sudo.group("user")
+            user = _sanitize_actor_user(sudo.group("user"))
             return self._base_event(
                 monitor_id=monitor_id,
                 user=user,
@@ -162,10 +213,9 @@ class MonitorCollector:
             )
         ssh = SSH_OUT_RE.search(line)
         if ssh:
-            user = "unknown"
             return self._base_event(
                 monitor_id=monitor_id,
-                user=user,
+                user=_fallback_monitor_actor(),
                 event_type="remote_login",
                 payload={
                     "destination_host": ssh.group("target"),
@@ -175,7 +225,7 @@ class MonitorCollector:
             )
         win_login = WIN_LOGIN_RE.search(line)
         if win_login:
-            user = win_login.group("user")
+            user = _sanitize_actor_user(win_login.group("user"))
             return self._base_event(
                 monitor_id=monitor_id,
                 user=user,
@@ -184,7 +234,7 @@ class MonitorCollector:
             )
         win_runas = WIN_RUNAS_RE.search(line)
         if win_runas:
-            user = win_runas.group("user")
+            user = _sanitize_actor_user(win_runas.group("user"))
             return self._base_event(
                 monitor_id=monitor_id,
                 user=user,
@@ -196,7 +246,7 @@ class MonitorCollector:
             target = sc.group("u")
             return self._base_event(
                 monitor_id=monitor_id,
-                user="unknown",
+                user=_sanitize_actor_user(target),
                 event_type="session_terminate",
                 payload={"target_user": target, "method": "session_closed"},
             )
@@ -205,7 +255,7 @@ class MonitorCollector:
             target = lo.group("u")
             return self._base_event(
                 monitor_id=monitor_id,
-                user=target,
+                user=_sanitize_actor_user(target),
                 event_type="session_terminate",
                 payload={"target_user": target, "method": "logout"},
             )
@@ -218,12 +268,12 @@ class MonitorCollector:
             )
         return None
 
-    def _try_tool_download(self, stripped: str, monitor_id: str) -> dict | None:
+    def _try_tool_download(self, stripped: str, monitor_id: str, actor_user: str) -> dict | None:
         m = WGET_RE.search(stripped)
         if m:
             return self._base_event(
                 monitor_id,
-                "unknown",
+                actor_user,
                 "tool_download",
                 {"channel": "wget", "target": m.group("rest").strip()[:2048]},
             )
@@ -231,7 +281,7 @@ class MonitorCollector:
         if m:
             return self._base_event(
                 monitor_id,
-                "unknown",
+                actor_user,
                 "tool_download",
                 {"channel": "curl", "target": m.group("rest").strip()[:2048]},
             )
@@ -239,20 +289,20 @@ class MonitorCollector:
         if m:
             return self._base_event(
                 monitor_id,
-                "unknown",
+                actor_user,
                 "tool_download",
                 {"channel": "powershell", "target": m.group("rest").strip()[:2048]},
             )
         if BITS_RE.search(stripped):
             return self._base_event(
                 monitor_id,
-                "unknown",
+                actor_user,
                 "tool_download",
                 {"channel": "bitsadmin", "target": stripped[:2048]},
             )
         return None
 
-    def _parse_shell_line(self, line: str, monitor_id: str) -> list[dict]:
+    def _parse_shell_line(self, line: str, monitor_id: str, shell_actor: str) -> list[dict]:
         if not self._new_line(line):
             return []
         stripped = line.strip()
@@ -263,12 +313,12 @@ class MonitorCollector:
             return [
                 self._base_event(
                     monitor_id=monitor_id,
-                    user="unknown",
+                    user=shell_actor,
                     event_type="sensitive_file_access",
                     payload={"path": "/etc/passwd", "command_line": cmd},
                 )
             ]
-        dl = self._try_tool_download(stripped, monitor_id)
+        dl = self._try_tool_download(stripped, monitor_id, shell_actor)
         if dl:
             return [dl]
         ssh = SSH_OUT_RE.search(stripped)
@@ -276,7 +326,7 @@ class MonitorCollector:
             return [
                 self._base_event(
                     monitor_id=monitor_id,
-                    user="unknown",
+                    user=shell_actor,
                     event_type="remote_login",
                     payload={
                         "destination_host": ssh.group("target"),
@@ -291,7 +341,7 @@ class MonitorCollector:
         return [
             self._base_event(
                 monitor_id=monitor_id,
-                user="unknown",
+                user=shell_actor,
                 event_type="command_executed",
                 payload={"command_line": cmd},
             )
@@ -308,7 +358,7 @@ class MonitorCollector:
                     out.append(
                         self._base_event(
                             monitor_id,
-                            "unknown",
+                            _fallback_monitor_actor(),
                             "tamper_attempt",
                             {
                                 "path": path_str[:512],
@@ -329,7 +379,7 @@ class MonitorCollector:
                     out.append(
                         self._base_event(
                             monitor_id,
-                            "unknown",
+                            _fallback_monitor_actor(),
                             "tamper_attempt",
                             {
                                 "path": path_str[:512],
@@ -342,7 +392,7 @@ class MonitorCollector:
     def heartbeat_event(self, monitor_id: str) -> dict:
         return self._base_event(
             monitor_id=monitor_id,
-            user="system",
+            user=_fallback_monitor_actor(),
             event_type="monitor_heartbeat",
             payload={},
         )

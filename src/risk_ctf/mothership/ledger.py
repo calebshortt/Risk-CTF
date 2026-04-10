@@ -10,28 +10,38 @@ from pathlib import Path
 from typing import Any
 
 
+_ACTIVITY_SUMMARY_MAX = 512
+
+
 def _activity_feed_summary(event_type: str, payload: dict[str, Any]) -> str:
     if event_type == "command_executed":
-        return str(payload.get("command_line", ""))[:120]
-    if event_type == "tool_download":
-        return f"{payload.get('channel', '?')}: {str(payload.get('target', ''))[:100]}"
-    if event_type == "host_reboot":
-        return str(payload.get("detail", ""))[:120]
-    if event_type == "tamper_attempt":
-        return f"{payload.get('path', '')}: {payload.get('observation', '')}"
-    if event_type == "session_terminate":
-        return f"target={payload.get('target_user')} via {payload.get('method', '')}"
-    if event_type == "remote_login":
-        return f"->{payload.get('destination_country')} ({payload.get('protocol')})"
-    if event_type == "user_login":
-        return f"login ip={payload.get('source_ip', '')}"
-    if event_type == "sudo_elevation":
-        return str(payload.get("method", ""))
+        return str(payload.get("command_line", ""))[:_ACTIVITY_SUMMARY_MAX]
     if event_type == "sensitive_file_access":
-        return f"{payload.get('path', '')}: {str(payload.get('command_line', ''))[:100]}"
+        return str(payload.get("command_line", ""))[:_ACTIVITY_SUMMARY_MAX]
+    if event_type == "tool_download":
+        return f"{payload.get('channel', '?')}: {payload.get('target', '')}"[
+            :_ACTIVITY_SUMMARY_MAX
+        ]
+    if event_type == "host_reboot":
+        return str(payload.get("detail", ""))[:_ACTIVITY_SUMMARY_MAX]
+    if event_type == "tamper_attempt":
+        return f"{payload.get('path', '')}: {payload.get('observation', '')}"[:_ACTIVITY_SUMMARY_MAX]
+    if event_type == "session_terminate":
+        return f"target={payload.get('target_user')} via {payload.get('method', '')}"[
+            :_ACTIVITY_SUMMARY_MAX
+        ]
+    if event_type == "remote_login":
+        return (
+            f"ssh {payload.get('destination_host', '')} "
+            f"({payload.get('destination_country', '')})"
+        )[:_ACTIVITY_SUMMARY_MAX]
+    if event_type == "user_login":
+        return f"login ip={payload.get('source_ip', '')}"[:_ACTIVITY_SUMMARY_MAX]
+    if event_type == "sudo_elevation":
+        return str(payload.get("method", ""))[:_ACTIVITY_SUMMARY_MAX]
     if event_type == "monitor_heartbeat":
         return "monitor alive"
-    return event_type
+    return str(event_type)[:_ACTIVITY_SUMMARY_MAX]
 
 
 COUNTRIES = [

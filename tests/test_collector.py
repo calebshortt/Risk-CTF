@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
 
-from risk_ctf.monitor.collector import CollectorConfig, MonitorCollector
+from risk_ctf.monitor.collector import (
+    CollectorConfig,
+    MonitorCollector,
+    actor_user_from_shell_history_path,
+)
 
 
 class CollectorTests(unittest.TestCase):
@@ -42,9 +47,10 @@ class CollectorTests(unittest.TestCase):
         )
         col = MonitorCollector(cfg)
         line = "wget https://example.com/tool.gz\n"
-        events = col._parse_shell_line(line, "m1")  # noqa: SLF001
+        events = col._parse_shell_line(line, "m1", "alice")  # noqa: SLF001
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "tool_download")
+        self.assertEqual(events[0]["actor_user"], "alice")
 
     def test_shell_etc_passwd_emits_sensitive_file_access(self) -> None:
         cfg = CollectorConfig(
@@ -56,9 +62,10 @@ class CollectorTests(unittest.TestCase):
             source_country="X",
         )
         col = MonitorCollector(cfg)
-        events = col._parse_shell_line("cat /etc/passwd\n", "m1")  # noqa: SLF001
+        events = col._parse_shell_line("cat /etc/passwd\n", "m1", "bob")  # noqa: SLF001
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "sensitive_file_access")
+        self.assertEqual(events[0]["actor_user"], "bob")
         self.assertEqual(events[0]["payload"]["path"], "/etc/passwd")
         self.assertIn("/etc/passwd", events[0]["payload"]["command_line"])
 
@@ -87,9 +94,10 @@ class CollectorTests(unittest.TestCase):
             source_country="X",
         )
         col = MonitorCollector(cfg)
-        events = col._parse_shell_line("diff /etc/passwd.bak /tmp/x\n", "m1")  # noqa: SLF001
+        events = col._parse_shell_line("diff /etc/passwd.bak /tmp/x\n", "m1", "carol")  # noqa: SLF001
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "command_executed")
+        self.assertEqual(events[0]["actor_user"], "carol")
 
     def test_shell_plain_line_is_command_executed(self) -> None:
         cfg = CollectorConfig(
@@ -101,10 +109,21 @@ class CollectorTests(unittest.TestCase):
             source_country="X",
         )
         col = MonitorCollector(cfg)
-        events = col._parse_shell_line("echo hello\n", "m1")  # noqa: SLF001
+        events = col._parse_shell_line("echo hello\n", "m1", "dave")  # noqa: SLF001
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0]["event_type"], "command_executed")
+        self.assertEqual(events[0]["actor_user"], "dave")
         self.assertIn("echo", events[0]["payload"]["command_line"])
+
+    def test_actor_from_shell_history_path(self) -> None:
+        if os.name == "nt":
+            self.assertEqual(
+                actor_user_from_shell_history_path(r"C:\Users\SomeUser\Documents\history.txt"),
+                "SomeUser",
+            )
+        else:
+            self.assertEqual(actor_user_from_shell_history_path("/home/bob/.bash_history"), "bob")
+            self.assertEqual(actor_user_from_shell_history_path("/root/.bash_history"), "root")
 
     def test_auth_session_closed_emits_session_terminate(self) -> None:
         cfg = CollectorConfig(
@@ -120,6 +139,7 @@ class CollectorTests(unittest.TestCase):
         ev = col._parse_auth_line(line, "m1")  # noqa: SLF001
         self.assertIsNotNone(ev)
         self.assertEqual(ev["event_type"], "session_terminate")
+        self.assertEqual(ev["actor_user"], "alice")
         self.assertEqual(ev["payload"]["target_user"], "alice")
 
     def test_auth_reboot_line_emits_host_reboot(self) -> None:

@@ -44,6 +44,8 @@ class DashboardRenderTests(unittest.TestCase):
                 self.assertIn("The Shattered Meridian", html)
                 self.assertIn("activity-feed", html)
                 self.assertIn("Recent activity", html)
+                self.assertNotIn("<th>Type</th>", html)
+                self.assertIn("<th>Actor</th>", html)
                 self.assertIn("world-svg", html)
             finally:
                 ledger.close()

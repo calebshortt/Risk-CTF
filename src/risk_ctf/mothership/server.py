@@ -308,10 +308,10 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     <h3 class="section">Movements</h3>
     <ul id="moves"></ul>
     <h3 class="section">Recent activity</h3>
-    <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">Latest ingested events (all types).</p>
+    <p style="color:var(--muted);font-size:0.85rem;margin:0 0 0.5rem;">Latest ingested events; summary shows the command or context when available.</p>
     <div class="feed-wrap">
       <table class="feed" aria-label="Recent activity">
-        <thead><tr><th>Time</th><th>Type</th><th>Actor</th><th>Nation</th><th>Summary</th></tr></thead>
+        <thead><tr><th>Time</th><th>Actor</th><th>Nation</th><th>Summary</th></tr></thead>
         <tbody id="activity-feed"></tbody>
       </table>
     </div>
@@ -468,7 +468,7 @@ def render_dashboard_html(state: dict[str, Any]) -> str:
     const feedBody = document.getElementById("activity-feed");
     (state.activity_feed || []).forEach((row) => {{
       const tr = document.createElement("tr");
-      const tds = [row.ts || "", row.event_type || "", row.actor_user || "", row.source_country || "", row.summary || ""];
+      const tds = [row.ts || "", row.actor_user || "", row.source_country || "", row.summary || ""];
       tr.innerHTML = "<td>" + tds.map((c) => String(c).replace(/&/g,"&amp;").replace(/</g,"&lt;")).join("</td><td>") + "</td>";
       feedBody.appendChild(tr);
     }});
